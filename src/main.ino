@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define DWORD_ALIGN_PTR(a)   ((a & 0x3) ?(((uintptr_t)a + 0x4) & ~(uintptr_t)0x3) : a)
 /*
  ** NOTE: If you run into TFLite arena allocation issue.
  **
@@ -163,14 +164,14 @@ void loop()
                     uint8_t *temp_buf = NULL;
                     temp_mem = ei_malloc(width * height * RGB_CHANNELS);
                     //  void *snapshot_mem = ei_malloc(EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT * RGB_CHANNELS);
-                    temp_buf = (uint8_t *)temp_mem;
+                    temp_buf = (uint8_t *)DWORD_ALIGN_PTR((uintptr_t)temp_mem);
                     while (image.available())
                     {
                         image.read(temp_buf, fileSize);
                     }
                     image.close();
-                    if (width != EI_CLASSIFIER_INPUT_WIDTH && height != EI_CLASSIFIER_INPUT_HEIGHT)
-                        ei::image::processing::crop_and_interpolate_rgb888(temp_buf, width, height, temp_buf, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
+                    // if (width != EI_CLASSIFIER_INPUT_WIDTH && height != EI_CLASSIFIER_INPUT_HEIGHT)
+                    //     ei::image::processing::crop_and_interpolate_rgb888(temp_buf, width, height, temp_buf, EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT);
 
                     startIndex = endIndex + 1;
 
