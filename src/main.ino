@@ -22,7 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define DWORD_ALIGN_PTR(a)   ((a & 0x3) ?(((uintptr_t)a + 0x4) & ~(uintptr_t)0x3) : a)
+#define DWORD_ALIGN_PTR(a) ((a & 0x3) ? (((uintptr_t)a + 0x4) & ~(uintptr_t)0x3) : a)
 /*
  ** NOTE: If you run into TFLite arena allocation issue.
  **
@@ -70,7 +70,7 @@ static bool is_initialised = false;
 static uint8_t *snapshot_buf;
 // uint8_t *frame_buffer = NULL;
 #define RGB_CHANNELS 3
-const char *INFO_FILE = "/res_data.txt";
+const char *INFO_FILE = "/MCU/res_data.txt";
 static bool debug_nn = false; // Set this to true to see e.g. features generated from the raw signal
 
 void setup()
@@ -103,6 +103,10 @@ void setup()
  * @param[in]  debug  Get debug info if true
  */
 
+int samples = 0;
+int inference_time = 0;
+int highest_inference = 0;
+int lowest_inference = 10000;
 void loop()
 {
     bool stop_inferencing = false;
@@ -136,6 +140,9 @@ void loop()
             endIndex = res_data.indexOf('\n', startIndex);
             if (endIndex >= 0)
             {
+
+                samples++;
+
                 String linea = res_data.substring(startIndex, endIndex);
                 int commaIndex1 = linea.indexOf(',');
                 int commaIndex2 = linea.indexOf(',', commaIndex1 + 1);
@@ -152,7 +159,7 @@ void loop()
                     Serial.println(width);
                     Serial.print("Height: ");
                     Serial.println(height);
-                    File image = SD.open("/" + nombre + ".bmp", FILE_READ);
+                    File image = SD.open("/MCU/" + nombre + ".bmp", FILE_READ);
                     if (!image)
                     {
                         Serial.println("Error al abrir el archivo images");
@@ -193,6 +200,13 @@ void loop()
                     // print the predictions
                     ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
                               result.timing.dsp, result.timing.classification, result.timing.anomaly);
+
+                    int classtime = result.timing.classification;
+                    inference_time+=classtime;
+                    if (classtime < lowest_inference)
+                        lowest_inference = classtime;
+                    else if (classtime > highest_inference)
+                        highest_inference = classtime;
 
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
                     bool bb_found = result.bounding_boxes[0].value > 0;
@@ -239,29 +253,30 @@ void loop()
                 }
             }
         }
+        ei_printf("Average Inference:%d, Maximum inference:%d, Minimum inference:%d", inference_time / samples, highest_inference, lowest_inference);
     }
 }
-       void calculate_crop_dims(
-                int srcWidth,
-                int srcHeight,
-                int dstWidth,
-                int dstHeight,
-                int &cropWidth,
-                int &cropHeight)
-            {
-                // first, trim the largest axis to match destination aspect ratio
-                // calculate by fixing the smaller axis
-                if (srcWidth > srcHeight)
-                {
-                    cropWidth = (uint32_t)(dstWidth * srcHeight) / dstHeight; // cast in case int is small
-                    cropHeight = srcHeight;
-                }
-                else
-                {
-                    cropHeight = (uint32_t)(dstHeight * srcWidth) / dstWidth;
-                    cropWidth = srcWidth;
-                }
-            }
+void calculate_crop_dims(
+    int srcWidth,
+    int srcHeight,
+    int dstWidth,
+    int dstHeight,
+    int &cropWidth,
+    int &cropHeight)
+{
+    // first, trim the largest axis to match destination aspect ratio
+    // calculate by fixing the smaller axis
+    if (srcWidth > srcHeight)
+    {
+        cropWidth = (uint32_t)(dstWidth * srcHeight) / dstHeight; // cast in case int is small
+        cropHeight = srcHeight;
+    }
+    else
+    {
+        cropHeight = (uint32_t)(dstHeight * srcWidth) / dstWidth;
+        cropWidth = srcWidth;
+    }
+}
 static int ei_camera_get_data(size_t offset, size_t length, float *out_ptr)
 {
     // we already have a RGB888 buffer, so recalculate offset into pixel index
